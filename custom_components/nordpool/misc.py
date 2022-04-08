@@ -14,6 +14,8 @@ __all__ = [
     "is_new",
     "has_junk",
     "extract_attrs",
+    "extract_attrs_tomorrow",
+    "extract_attrs_yesterday",
     "start_of",
     "end_of",
     "stock",
@@ -117,6 +119,35 @@ def extract_attrs(data) -> dict:
 
     return data
 
+def extract_attrs_tomorrow(data) -> dict:
+    d = defaultdict(list)
+    items = [i.get("value") for i in data]
+
+    if len(data):
+        data = sorted(data, key=itemgetter("start"))
+
+        d["Tomorrow Average"] = mean(items)
+        d["Tomorrow Min"] = min(items)
+        d["Tomorrow Max"] = max(items)
+
+        return d
+
+    return data
+
+def extract_attrs_yesterday(data) -> dict:
+    d = defaultdict(list)
+    items = [i.get("value") for i in data]
+
+    if len(data):
+        data = sorted(data, key=itemgetter("start"))
+
+        d["Yesterday Average"] = mean(items)
+        d["Yesterday Min"] = min(items)
+        d["Yesterday Max"] = max(items)
+
+        return d
+
+    return data
 
 '''
 def as_tz(dattim, tz=None):

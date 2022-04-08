@@ -15,7 +15,7 @@ from homeassistant.util import dt as dt_utils
 from jinja2 import contextfunction
 
 from . import DOMAIN, EVENT_NEW_DATA
-from .misc import extract_attrs, has_junk, is_new, start_of
+from .misc import extract_attrs, extract_attrs_tomorrow, extract_attrs_yesterday, has_junk, is_new, start_of
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,6 +170,16 @@ class NordpoolSensor(Entity):
         self._off_peak_2 = None
         self._peak = None
 
+        # Values for tomorrow
+        self._tomorrow_average = None
+        self._tomorrow_max = None
+        self._tomorrow_min = None
+
+        # Values for yesterday
+        self._yesterday_average = None
+        self._yesterday_max = None
+        self._yesterday_min = None
+
         # Check incase the sensor was setup using config flow.
         # This blow up if the template isnt valid.
         if not isinstance(self._ad_template, Template):
@@ -319,6 +329,52 @@ class NordpoolSensor(Entity):
             self._min = min(formatted_prices)
             self._max = max(formatted_prices)
 
+    def _update_tomorrow(self, data) -> None:
+        """Set attrs."""
+        _LOGGER.debug("Called _update setting attrs for tomorrow")
+
+        d = extract_attrs_tomorrow(data.get("values"))
+        data.update(d)
+
+        if self._ad_template.template == DEFAULT_TEMPLATE:
+            self._tomorrow_average = self._calc_price(data.get("Tomorrow Average"))
+            self._tomorrow_min = self._calc_price(data.get("Tomorrow Min"))
+            self._tomorrow_max = self._calc_price(data.get("Tomorrow Max"))
+        else:
+            data = sorted(data.get("values"), key=itemgetter("start"))
+            formatted_prices = [
+                self._calc_price(
+                    i.get("value"), fake_dt=dt_utils.as_local(i.get("start"))
+                )
+                for i in data
+            ]
+            self._tomorrow_average = mean(formatted_prices)
+            self._tomorrow_min = min(formatted_prices)
+            self._tomorrow_max = max(formatted_prices)
+
+    def _update_yesterday(self, data) -> None:
+        """Set attrs."""
+        _LOGGER.debug("Called _update setting attrs for yesterday")
+
+        d = extract_attrs_yesterday(data.get("values"))
+        data.update(d)
+
+        if self._ad_template.template == DEFAULT_TEMPLATE:
+            self._yesterday_average = self._calc_price(data.get("Yesterday Average"))
+            self._yesterday_min = self._calc_price(data.get("Yesterday Min"))
+            self._yesterday_max = self._calc_price(data.get("Yesterday Max"))
+        else:
+            data = sorted(data.get("values"), key=itemgetter("start"))
+            formatted_prices = [
+                self._calc_price(
+                    i.get("value"), fake_dt=dt_utils.as_local(i.get("start"))
+                )
+                for i in data
+            ]
+            self._yesterday_average = mean(formatted_prices)
+            self._yesterday_min = min(formatted_prices)
+            self._yesterday_max = max(formatted_prices)
+
     @property
     def current_price(self) -> float:
         res = self._calc_price()
@@ -400,6 +456,12 @@ class NordpoolSensor(Entity):
             "region": self._area,
             "low price": self.low_price,
             "tomorrow_valid": self.tomorrow_valid,
+            "tomorrow_average": self._tomorrow_average,
+            "tomorrow_max": self._tomorrow_max,
+            "tomorrow_min": self._tomorrow_min,
+            "yesterday_average": self._yesterday_average,
+            "yesterday_max": self._yesterday_max,
+            "yesterday_min": self._yesterday_min,
             "today": self.today,
             "tomorrow": self.tomorrow,
             "yesterday": self.yesterday,
@@ -469,12 +531,14 @@ class NordpoolSensor(Entity):
             tomorrow = await self._api.tomorrow(self._area, self._currency)
             if tomorrow:
                 self._data_tomorrow = tomorrow
+                self._update_tomorrow(tomorrow)
 
         if self._data_yesterday is None:
             _LOGGER.debug("NordpoolSensor _data_yesterday is none, trying to fetch it.")
             yesterday = await self._api.yesterday(self._area, self._currency)
             if yesterday:
                 self._data_yesterday = yesterday
+                self._update_yesterday(yesterday)
 
         # We can just check if this is the first hour.
 
@@ -483,10 +547,12 @@ class NordpoolSensor(Entity):
             # No need to update if we got the info we need
             if self._data_today is not None:
                 self._data_yesterday = self._data_today
+                self._update_yesterday(self._data_yesterday)
             else:
                 yesterday = await self._api.yesterday(self._area, self._currency)
                 if yesterday:
                     self._data_yesterday = yesterday
+                    self._update_yesterday(self._data_yesterday)
             if self._data_tomorrow is not None:
                 self._data_today = self._data_tomorrow
                 self._update(self._data_today)
@@ -503,6 +569,7 @@ class NordpoolSensor(Entity):
         tomorrow = await self._api.tomorrow(self._area, self._currency)
         if tomorrow:
             self._data_tomorrow = tomorrow
+            self._update_tomorrow(tomorrow)
 
         self._last_tick = dt_utils.now()
         self.async_write_ha_state()
