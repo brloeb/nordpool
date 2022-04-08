@@ -160,6 +160,7 @@ class NordpoolSensor(Entity):
         # Holds the data for today and morrow.
         self._data_today = None
         self._data_tomorrow = None
+        self._data_yesterday = None
 
         # Values for the day
         self._average = None
@@ -371,6 +372,19 @@ class NordpoolSensor(Entity):
         ]
 
     @property
+    def yesterday(self) -> list:
+        """Get yesterdays prices
+
+        Returns:
+            list: sorted where yesterday[0] is the price of hour 00.00 - 01.00 etc.
+        """
+        return [
+            self._calc_price(i["value"], fake_dt=i["start"])
+            for i in self._someday(self._data_yesterday)
+            if i
+        ]
+
+    @property
     def extra_state_attributes(self) -> dict:
         return {
             "current_price": self.current_price,
@@ -388,8 +402,10 @@ class NordpoolSensor(Entity):
             "tomorrow_valid": self.tomorrow_valid,
             "today": self.today,
             "tomorrow": self.tomorrow,
+            "yesterday": self.yesterday,
             "raw_today": self.raw_today,
             "raw_tomorrow": self.raw_tomorrow,
+            "raw_yesterday": self.raw_yesterday,
         }
 
     def _add_raw(self, data):
@@ -410,6 +426,10 @@ class NordpoolSensor(Entity):
     @property
     def raw_tomorrow(self):
         return self._add_raw(self._data_tomorrow)
+
+    @property
+    def raw_yesterday(self):
+        return self._add_raw(self._data_yesterday)
 
     @property
     def tomorrow_valid(self):
@@ -450,11 +470,23 @@ class NordpoolSensor(Entity):
             if tomorrow:
                 self._data_tomorrow = tomorrow
 
+        if self._data_yesterday is None:
+            _LOGGER.debug("NordpoolSensor _data_yesterday is none, trying to fetch it.")
+            yesterday = await self._api.yesterday(self._area, self._currency)
+            if yesterday:
+                self._data_yesterday = yesterday
+
         # We can just check if this is the first hour.
 
         if is_new(self._last_tick, typ="day"):
             # if now.hour == 0:
             # No need to update if we got the info we need
+            if self._data_today is not None:
+                self._data_yesterday = self._data_today
+            else:
+                yesterday = await self._api.yesterday(self._area, self._currency)
+                if yesterday:
+                    self._data_yesterday = yesterday
             if self._data_tomorrow is not None:
                 self._data_today = self._data_tomorrow
                 self._update(self._data_today)

@@ -42,6 +42,16 @@ if __name__ == "__main__":
 
             head["sensor"][0]["sensors"][name % ("tomorrow", z, z + 1)] = sensor
 
+        for z in range(24):
+            sensor = {
+                "friendly_name": friendly_name + " yesterday h %s" % (z + 1),
+                "icon_template": icon,
+                "unit_of_measurement": unit,
+                "value_template": state_attr % (entity_id, "yesterday", z),
+            }
+
+            head["sensor"][0]["sensors"][name % ("yesterday", z, z + 1)] = sensor
+
         with open(path, "w") as yaml_file:
             yaml.dump(head, yaml_file, default_flow_style=False)
             click.echo("All done, wrote file to %s" % path)

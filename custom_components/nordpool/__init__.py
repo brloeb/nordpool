@@ -74,13 +74,17 @@ class NordpoolData:
                 async_call_later(hass, 20, partial(self._update, type_=type_, dt=dt))
 
     async def update_today(self, n: datetime):
-        _LOGGER.debug("Updating tomorrows prices.")
+        _LOGGER.debug("Updating todays prices.")
         await self._update("today")
 
     async def update_tomorrow(self, n: datetime):
         _LOGGER.debug("Updating tomorrows prices.")
         await self._update(type_="tomorrow", dt=dt_utils.now() + timedelta(hours=24))
         self._tomorrow_valid = True
+
+    async def update_yesterday(self, n: datetime):
+        _LOGGER.debug("Updating yesterdays prices.")
+        await self._update("yesterday", dt=dt_utils.now() - timedelta(hours=24))
 
     async def _someday(self, area: str, currency: str, day: str):
         """Returns todays or tomorrows prices in a area in the currency"""
@@ -96,6 +100,7 @@ class NordpoolData:
             self.currency.append(currency)
             await self.update_today(None)
             await self.update_tomorrow(None)
+            await self.update_yesterday(None)
 
         return self._data.get(currency, {}).get(day, {}).get(area)
 
@@ -112,6 +117,11 @@ class NordpoolData:
         res = await self._someday(area, currency, "tomorrow")
         return res
 
+    async def yesterday(self, area: str, currency: str):
+        """Returns yesterdays prices in a area in the requested currency"""
+        res = await self._someday(area, currency, "yesterday")
+        return res
+
 
 async def _dry_setup(hass: HomeAssistant, config: Config) -> bool:
     """Set up using yaml config file."""
@@ -126,6 +136,10 @@ async def _dry_setup(hass: HomeAssistant, config: Config) -> bool:
             api._tomorrow_valid = False
 
             for curr in api.currency:
+                if not len(api._data[curr]["today"]):
+                    api._data[curr]["yesterday"] = await api.update_yesterday(None)
+                else:
+                    api._data[curr]["yesterday"] = api._data[curr]["today"]
                 if not len(api._data[curr]["tomorrow"]):
                     api._data[curr]["today"] = await api.update_today(None)
                 else:
