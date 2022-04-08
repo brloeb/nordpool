@@ -1,4 +1,5 @@
 import logging
+import math
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import partial
@@ -79,7 +80,11 @@ class NordpoolData:
     async def update_tomorrow(self, n: datetime):
         _LOGGER.debug("Updating tomorrows prices.")
         await self._update(type_="tomorrow", dt=dt_utils.now() + timedelta(hours=24))
-        self._tomorrow_valid = True
+        self._tomorrow_valid = False
+        for currency in self.currency:
+            if len(self._data[currency]["tomorrow"]):
+                if not math.isinf(self._data[currency]["tomorrow"]["SYS"]["values"][0]['value']):
+                    self._tomorrow_valid = True
 
     async def update_yesterday(self, n: datetime):
         _LOGGER.debug("Updating yesterdays prices.")
