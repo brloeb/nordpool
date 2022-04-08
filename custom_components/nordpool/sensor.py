@@ -180,6 +180,9 @@ class NordpoolSensor(Entity):
         self._yesterday_max = None
         self._yesterday_min = None
 
+        # Values for all days
+        self._all_days_max = None
+
         # Check incase the sensor was setup using config flow.
         # This blow up if the template isnt valid.
         if not isinstance(self._ad_template, Template):
@@ -329,6 +332,14 @@ class NordpoolSensor(Entity):
             self._min = min(formatted_prices)
             self._max = max(formatted_prices)
 
+        self._all_days_max = 0
+        if self._max is not None:
+            self._all_days_max = max(self._all_days_max, self._max)
+        if self._yesterday_max is not None: 
+            self._all_days_max = max(self._all_days_max, self._yesterday_max)
+        if self.tomorrow_valid and self._tomorrow_max is not None:
+            self._all_days_max = max(self._all_days_max, self._tomorrow_max)
+
     def _update_tomorrow(self, data) -> None:
         """Set attrs."""
         _LOGGER.debug("Called _update setting attrs for tomorrow")
@@ -352,6 +363,14 @@ class NordpoolSensor(Entity):
             self._tomorrow_min = min(formatted_prices)
             self._tomorrow_max = max(formatted_prices)
 
+        self._all_days_max = 0
+        if self._max is not None:
+            self._all_days_max = max(self._all_days_max, self._max)
+        if self._yesterday_max is not None: 
+            self._all_days_max = max(self._all_days_max, self._yesterday_max)
+        if self.tomorrow_valid and self._tomorrow_max is not None:
+            self._all_days_max = max(self._all_days_max, self._tomorrow_max)
+
     def _update_yesterday(self, data) -> None:
         """Set attrs."""
         _LOGGER.debug("Called _update setting attrs for yesterday")
@@ -374,6 +393,14 @@ class NordpoolSensor(Entity):
             self._yesterday_average = mean(formatted_prices)
             self._yesterday_min = min(formatted_prices)
             self._yesterday_max = max(formatted_prices)
+
+        self._all_days_max = 0
+        if self._max is not None:
+            self._all_days_max = max(self._all_days_max, self._max)
+        if self._yesterday_max is not None: 
+            self._all_days_max = max(self._all_days_max, self._yesterday_max)
+        if self.tomorrow_valid and self._tomorrow_max is not None:
+            self._all_days_max = max(self._all_days_max, self._tomorrow_max)
 
     @property
     def current_price(self) -> float:
@@ -462,6 +489,7 @@ class NordpoolSensor(Entity):
             "yesterday_average": self._yesterday_average,
             "yesterday_max": self._yesterday_max,
             "yesterday_min": self._yesterday_min,
+            "all_days_max": self._all_days_max,
             "today": self.today,
             "tomorrow": self.tomorrow,
             "yesterday": self.yesterday,
